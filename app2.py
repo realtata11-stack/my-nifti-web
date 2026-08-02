@@ -1,5 +1,6 @@
 import glob
 import os
+import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import nibabel as nib
 import numpy as np
@@ -70,7 +71,7 @@ if not data_dict:
   )
 else:
   # ---------------------------------------------------------
-  # 4. Sidebar: ส่วนควบคุมหลัก
+  # 4. Sidebar: เลือกสีเข้มสด (Solid Colors)
   # ---------------------------------------------------------
   st.sidebar.header("⚙️ ตัวเลือกข้อมูล & ปรับแต่งสี")
 
@@ -81,20 +82,22 @@ else:
   selected_item = data_dict[selected_task]
 
   st.sidebar.markdown("---")
-  st.sidebar.subheader("🎨 การตั้งค่าสีระบาย (Mask)")
+  st.sidebar.subheader("🎨 เลือกโทนสีเข้ม (Solid Color)")
 
-  color_map = st.sidebar.selectbox(
-      "เลือกโทนสี Overlay:",
-      ["Reds", "Greens", "Blues", "YlOrRd", "plasma", "jet"],
-  )
+  # ตัวเลือกแม่สีเข้มๆ สดๆ
+  color_options = {
+      "🔴 แดงเข้ม (Solid Red)": "red",
+      "🟢 เขียวเข้ม (Solid Green)": "lime",
+      "🔵 น้ำเงินเข้ม (Solid Blue)": "blue",
+      "🟡 เหลืองสว่าง (Solid Yellow)": "yellow",
+      "🟣 ม่วงเข้ม (Solid Magenta)": "magenta",
+      "🟠 ส้มเข้ม (Solid Orange)": "darkorange",
+  }
 
-  alpha_val = st.sidebar.slider(
-      "ระดับความโปร่งแสง (Alpha):",
-      min_value=0.1,
-      max_value=1.0,
-      value=0.5,
-      step=0.05,
+  chosen_color_label = st.sidebar.selectbox(
+      "เลือกสี Mask:", list(color_options.keys())
   )
+  chosen_color = color_options[chosen_color_label]
 
   # ---------------------------------------------------------
   # 5. อ่านและประมวลผลไฟล์ NIfTI
@@ -119,7 +122,7 @@ else:
   )
 
   # ---------------------------------------------------------
-  # 6. แสดงผลเปรียบเทียบ Original vs Overlay
+  # 6. แสดงผลเปรียบเทียบ Original vs Solid Color Overlay
   # ---------------------------------------------------------
   col1, col2 = st.columns(2)
 
@@ -134,15 +137,18 @@ else:
     st.pyplot(fig1)
 
   with col2:
-    st.subheader(f"🎨 ภาพระบายสี {selected_task}")
+    st.subheader(f"🎨 ภาพระบายสีเข้ม {selected_task}")
     fig2, ax2 = plt.subplots(figsize=(5, 5))
 
-    # ภาพพื้นหลัง
+    # ภาพพื้นหลัง (ภาพถ่ายทางการแพทย์)
     ax2.imshow(img_slice, cmap="gray")
 
-    # ระบายเฉพาะตำแหน่งอวัยวะ (Label > 0)
+    # สร้าง Colormap แบบสีเดียวเข้มทึบแสง 100%
+    custom_cmap = mcolors.ListedColormap([chosen_color])
+
+    # ระบายสีเฉพาะพิกเซลที่เป็นอวัยวะ (Label > 0)
     masked_label = np.ma.masked_where(lbl_slice == 0, lbl_slice)
-    ax2.imshow(masked_label, cmap=color_map, alpha=alpha_val)
+    ax2.imshow(masked_label, cmap=custom_cmap, alpha=1.0)
 
     ax2.axis("off")
     st.pyplot(fig2)
