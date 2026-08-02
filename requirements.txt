@@ -2,4 +2,3 @@ streamlit
 nibabel
 matplotlib
 numpy
-scipy
