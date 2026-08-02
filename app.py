@@ -1,5 +1,4 @@
-import glob
-import os
+import tempfile
 import matplotlib.pyplot as plt
 import nibabel as nib
 import streamlit as st
@@ -12,41 +11,36 @@ st.set_page_config(
 st.title("🩺 Medical NIfTI Image Viewer")
 st.write("แอปพลิเคชันสำหรับแสดงผลและดูภาพถ่ายทางการแพทย์ (NIfTI format)")
 
-# กำหนด Path ของโฟลเดอร์เก็บภาพที่สกัดแล้ว
-OUTPUT_DIR = r"C:\Users\Admin\Desktop\MONAI Image\output_images"
+st.divider()
 
-# ตรวจสอบและดึงไฟล์ .nii.gz ทั้งหมดในโฟลเดอร์
-if not os.path.exists(OUTPUT_DIR):
-  st.error(f"❌ ไม่พบโฟลเดอร์: `{OUTPUT_DIR}` กรุณาตรวจสอบตำแหน่งโฟลเดอร์")
-else:
-  files = glob.glob(os.path.join(OUTPUT_DIR, "*.nii.gz"))
-  real_files = [f for f in files if "sample_organ" not in f]
+# ช่องสำหรับ Upload ไฟล์ NIfTI บนเว็บ
+uploaded_file = st.file_uploader(
+    "📤 เลือกหรือลากไฟล์ภาพ NIfTI (.nii / .nii.gz) มาวางที่นี่",
+    type=["nii", "gz"],
+)
 
-  if not real_files:
-    st.warning(f"⚠️ ไม่พบไฟล์ภาพ `.nii.gz` ในโฟลเดอร์: `{OUTPUT_DIR}`")
-  else:
-    # สร้าง Dropdown Menu สำหรับเลือกไฟล์อวัยวะ
-    file_names = [os.path.basename(f) for f in real_files]
-    selected_file_name = st.selectbox(
-        "🎯 เลือกภาพอวัยวะที่ต้องการดู:", file_names
-    )
+if uploaded_file is not None:
+  # บันทึกไฟล์ชั่วคราวลง Server เพื่อให้ Nibabel อ่านได้
+  with tempfile.NamedTemporaryFile(
+      delete=False, suffix=".nii.gz"
+  ) as tmp_file:
+    tmp_file.write(uploaded_file.read())
+    tmp_path = tmp_file.name
 
-    selected_path = os.path.join(OUTPUT_DIR, selected_file_name)
+  # โหลดข้อมูลภาพ NIfTI
+  img = nib.load(tmp_path)
+  data = img.get_fdata()
 
-    # โหลดข้อมูลภาพ NIfTI
-    img = nib.load(selected_path)
-    data = img.get_fdata()
+  # แบ่งการแสดงผลเป็น 2 คอลัมน์ (ข้อมูล Metadata และ ภาพถ่าย)
+  col1, col2 = st.columns([1, 2])
 
-    st.divider()
+  with col1:
+    st.subheader("📊 ข้อมูลภาพ (Metadata)")
+    st.write(f"**ชื่อไฟล์:** `{uploaded_file.name}`")
+    st.write(f"**มิติของภาพ (Dimensions):** `{data.shape}`")
 
-    # แบ่งการแสดงผลเป็น 2 คอลัมน์ (ข้อมูล Metadata และ ภาพถ่าย)
-    col1, col2 = st.columns([1, 2])
-
-    with col1:
-      st.subheader("📊 ข้อมูลภาพ (Metadata)")
-      st.write(f"**ชื่อไฟล์:** `{selected_file_name}`")
-      st.write(f"**มิติของภาพ (Dimensions):** `{data.shape}`")
-
+    # ตรวจสอบจำนวน Slice ในแกน Z
+    if len(data.shape) >= 3:
       total_slices = data.shape[2]
       if total_slices > 1:
         slice_idx = st.slider(
@@ -57,19 +51,30 @@ else:
         )
       else:
         slice_idx = 0
-        st.info("💡 ไฟล์นี้เป็นภาพ 1 Slice ที่สกัดออกมาเรียบร้อยแล้ว")
+        st.info("💡 ไฟล์นี้เป็นภาพ 1 Slice")
+    else:
+      slice_idx = 0
 
-    with col2:
-      st.subheader("🖼️ แสดงผลภาพถ่าย 2D")
+  with col2:
+    st.subheader("🖼️ แสดงผลภาพถ่าย 2D")
+
+    # ดึง Slice ตามที่เลือก
+    if len(data.shape) >= 3:
       slice_data = data[:, :, slice_idx]
+    else:
+      slice_data = data
 
-      fig, ax = plt.subplots(figsize=(6, 6))
-      ax.imshow(slice_data, cmap="gray")
-      ax.set_title(
-          f"{selected_file_name}\n(Slice {slice_idx + 1} / {total_slices})",
-          fontsize=10,
-          fontweight="bold",
-      )
-      ax.axis("off")
+    fig, ax = plt.subplots(figsize=(6, 6))
+    ax.imshow(slice_data, cmap="gray")
+    ax.set_title(
+        f"{uploaded_file.name}\n(Slice {slice_idx + 1} /"
+        f" {total_slices if len(data.shape) >= 3 else 1})",
+        fontsize=10,
+        fontweight="bold",
+    )
+    ax.axis("off")
 
-      st.pyplot(fig)
+    st.pyplot(fig)
+
+else:
+  st.info("👈 กรุณาอัปโหลดไฟล์ภาพ `.nii.gz` เพื่อเริ่มต้นใช้งาน")
